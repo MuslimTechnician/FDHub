@@ -9,7 +9,7 @@ To install these apps on your Android device, you need an F-Droid client (like [
 Add the following repository URL to your client:
 
 ```text
-https://muslimtechnician.github.io/fdhub/repo
+https://muslimtechnician.github.io/FDHub/repo
 ```
 
 Once added, the apps will appear in your catalog and automatically receive updates!

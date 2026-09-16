@@ -1,8 +1,8 @@
 {
-  "repoName": "My FDHub Repository",
-  "repoDescription": "An F-Droid compatible repository powered by FDHub",
-  "repoUrl": "https://YOUR_GITHUB_USERNAME.github.io/YOUR_REPO_NAME/repo",
-  "webBaseUrl": "https://YOUR_GITHUB_USERNAME.github.io/YOUR_REPO_NAME",
+  "repoName": "FDHub",
+  "repoDescription": "An F-Droid repository for apps that are not available in F-Droid and other repos, installable from any F-Droid client.",
+  "repoUrl": "https://muslimtechnician.github.io/FDHub/repo",
+  "webBaseUrl": "https://muslimtechnician.github.io/FDHub",
 
   "keystoreAlias": "repokey",
 

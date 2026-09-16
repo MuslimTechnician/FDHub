@@ -98,11 +98,7 @@ def _format_variant(variant: Variant, package_id: str) -> dict[str, Any]:
             "size": art.size,
         },
         "apkLink": art.download_url,  # External GitHub Release URL
-        "src": None,
         "manifest": manifest,
-        "releaseChannels": [],
-        "antiFeatures": {},
-        "whatsNew": {},
     }
 
     return entry
@@ -164,9 +160,6 @@ def format_index_v2(repo: Repository) -> dict[str, Any]:
         "address": repo.address,
         "webBaseUrl": repo.web_base_url,
         "timestamp": _ms_timestamp(repo.timestamp),
-        "antiFeatures": {},
-        "categories": {},
-        "mirrors": [],
     }
 
     packages: dict[str, Any] = {}

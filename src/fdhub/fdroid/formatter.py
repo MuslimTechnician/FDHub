@@ -127,10 +127,10 @@ def _format_application(app: Application) -> dict[str, Any]:
         metadata["categories"] = sorted(app.categories)
     if app.author_name:
         metadata["authorName"] = app.author_name
-    if app.added:
-        metadata["added"] = _ms_timestamp(app.added)
-    if app.last_updated:
-        metadata["lastUpdated"] = _ms_timestamp(app.last_updated)
+
+    # F-Droid MetadataV2 strictly requires 'added' and 'lastUpdated'
+    metadata["added"] = _ms_timestamp(app.added) if app.added else _now_ms()
+    metadata["lastUpdated"] = _ms_timestamp(app.last_updated) if app.last_updated else _now_ms()
 
     # Build versions map: key = "<versionCode>_<sha256_prefix>"
     versions: dict[str, Any] = {}

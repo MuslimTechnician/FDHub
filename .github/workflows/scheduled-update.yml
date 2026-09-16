@@ -527,6 +527,9 @@ jobs:
       - name: Setup GitHub Pages
         uses: actions/configure-pages@v4
 
+      - name: Copy Repository Icon
+        run: cp assets/icon.png generated/repo/icon.png || true
+
       - name: Upload repository to Pages
         uses: actions/upload-pages-artifact@v3
         with:

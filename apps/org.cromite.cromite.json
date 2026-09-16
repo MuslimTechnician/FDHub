@@ -1,0 +1,13 @@
+{
+  "id": "org.cromite.cromite",
+  "name": "Cromite",
+  "github": "uazo/cromite",
+  "assets": {
+    "include": ["*ChromePublic.apk"]
+  },
+  "metadata": {
+    "summary": "Cromite a Bromite fork with ad blocking and privacy enhancements",
+    "description": "Cromite a Bromite fork with ad blocking and privacy enhancements; take back your browser!",
+    "categories": ["Browser"]
+  }
+}

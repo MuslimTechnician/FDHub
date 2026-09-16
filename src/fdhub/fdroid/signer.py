@@ -140,7 +140,10 @@ def _apksigner_sign(
 ) -> None:
     """Sign a JAR file using apksigner."""
     cmd = [
-        apksigner, "sign",
+        apksigner,
+        "sign",
+        "--min-sdk-version",
+        "25",  # Bypasses the Missing AndroidManifest.xml check for repository JARs
         "--ks", str(keystore_path),
         "--ks-pass", f"pass:{ks_pass}",
         "--ks-key-alias", key_alias,

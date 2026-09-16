@@ -161,7 +161,6 @@ def format_index_v2(repo: Repository) -> dict[str, Any]:
     repo_section: dict[str, Any] = {
         "name": _format_localized(repo.name),
         "description": _format_localized(repo.description),
-        "icon": {},
         "address": repo.address,
         "webBaseUrl": repo.web_base_url,
         "timestamp": _ms_timestamp(repo.timestamp),

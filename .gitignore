@@ -1,0 +1,64 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Testing / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Type checkers
+.mypy_cache/
+.ruff_cache/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# FDHub runtime artifacts
+# APK cache (transient, not committed)
+cache/*
+!cache/.gitkeep
+state/apps/*
+!state/apps/.gitkeep
+generated/repo/*
+!generated/repo/.gitkeep
+generated/repo/signatures/*
+!generated/repo/signatures/.gitkeep
+generated/reports/*
+!generated/reports/.gitkeep
+
+# Large binary temp files
+*.tmp
+
+# Signing key (NEVER commit)
+*.jks
+*.keystore
+*.p12
+*.pfx
+keystore.b64
+local.properties
+
+# Generated output (committed selectively; gh-pages branch handles publication)
+# generated/ is committed because it contains the published repo index
+
+# OS
+.DS_Store
+Thumbs.db

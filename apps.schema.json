@@ -1,0 +1,149 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://fdhub.dev/schemas/app.schema.json",
+  "title": "FDHub App Configuration",
+  "description": "Configuration for one application tracked by FDHub (apps/<app-id>.json)",
+  "type": "object",
+  "required": ["id", "name", "github"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-Z0-9_]*)+$",
+      "description": "Android package ID in reverse-domain format (e.g. org.example.app). Must have at least two dot-separated components.",
+      "examples": ["org.mozilla.fennec_aurora", "com.example.myapp"]
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "Human-readable application name."
+    },
+    "github": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$",
+      "description": "GitHub repository slug in 'owner/repository' format.",
+      "examples": ["mozilla-mobile/fenix", "signalapp/Signal-Android"]
+    },
+    "releasePolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Controls which GitHub releases are eligible for indexing.",
+      "properties": {
+        "includePrereleases": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to include pre-release GitHub releases. Default: false."
+        },
+        "includeDrafts": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to include draft GitHub releases. Default: false."
+        }
+      }
+    },
+    "assets": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Glob-based include/exclude rules for release assets.",
+      "properties": {
+        "include": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": ["*.apk"],
+          "description": "Glob patterns for assets to include. Default: ['*.apk']."
+        },
+        "exclude": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": ["*-debug.apk", "*-unsigned.apk"],
+          "description": "Glob patterns for assets to exclude. Takes precedence over include."
+        }
+      }
+    },
+    "signing": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "APK signing certificate constraints.",
+      "properties": {
+        "allowedCertificates": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(SHA256:)?[0-9A-Fa-f:]+$"
+          },
+          "description": "Expected APK signing certificate SHA-256 fingerprints. If specified, APKs signed with other certificates will be quarantined."
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Optional metadata overrides. FDHub will obtain metadata automatically when possible.",
+      "properties": {
+        "summary": {
+          "type": "string",
+          "maxLength": 80,
+          "description": "Short one-line summary (max 80 chars)."
+        },
+        "description": {
+          "type": "string",
+          "description": "Full app description. Supports basic markdown."
+        },
+        "license": {
+          "type": "string",
+          "description": "SPDX license identifier (e.g. Apache-2.0, GPL-3.0-or-later)."
+        },
+        "website": {
+          "type": "string",
+          "format": "uri",
+          "description": "Application website URL."
+        },
+        "sourceCode": {
+          "type": "string",
+          "format": "uri",
+          "description": "Source code URL (defaults to GitHub URL)."
+        },
+        "issueTracker": {
+          "type": "string",
+          "format": "uri",
+          "description": "Issue tracker URL."
+        },
+        "changelog": {
+          "type": "string",
+          "format": "uri",
+          "description": "Changelog URL."
+        },
+        "categories": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "F-Droid category names."
+        },
+        "authorName": {
+          "type": "string",
+          "description": "Developer or organization name."
+        },
+        "authorEmail": {
+          "type": "string",
+          "format": "email",
+          "description": "Developer or organization contact email."
+        }
+      }
+    },
+    "retention": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Version retention policy.",
+      "properties": {
+        "maxVersions": {
+          "oneOf": [
+            { "type": "integer", "minimum": 1 },
+            { "type": "null" }
+          ],
+          "default": null,
+          "description": "Maximum number of versions to retain in the index. null means keep all versions indefinitely."
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "repoName": "My FDHub Repository",
+  "repoDescription": "An F-Droid compatible repository powered by FDHub",
+  "repoUrl": "https://YOUR_GITHUB_USERNAME.github.io/YOUR_REPO_NAME/repo",
+  "webBaseUrl": "https://YOUR_GITHUB_USERNAME.github.io/YOUR_REPO_NAME",
+
+  "keystoreAlias": "repokey",
+
+  "schedule": {
+    "cron": "0 0 * * *",
+    "timezone": "UTC"
+  },
+
+  "batch": {
+    "size": 50,
+    "maxParallel": 10
+  },
+
+  "rateLimit": {
+    "requestsPerHour": 4500,
+    "interRequestDelayMs": 200,
+    "maxRetries": 5,
+    "backoffBaseSeconds": 1.0,
+    "backoffMaxSeconds": 60.0
+  },
+
+  "strictCertificateMode": false
+}

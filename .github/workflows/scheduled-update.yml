@@ -1,0 +1,537 @@
+name: FDHub Scheduled Update
+
+# Runs once per day (default: midnight UTC).
+# Also supports manual dispatch with an optional single-app target.
+#
+# Architecture:
+#   Job 1: discover    — cheap check of all apps, produces work-list.json
+#   Job 2: process     — matrix over batches (configurable size)
+#   Job 3: publish     — merge results, generate index, sign, deploy to Pages
+#
+# GitHub Actions limits:
+#   - Matrix: max 256 jobs per workflow
+#   - GITHUB_TOKEN: 1,000 req/hr per repo (use a PAT for higher limits)
+#   - GitHub Pages: 1 GB max, 100 GB/month bandwidth
+
+on:
+  schedule:
+    # Default: midnight UTC daily.
+    # Note: GitHub scheduled workflows may be delayed during high load.
+    - cron: "0 0 * * *"
+
+  workflow_dispatch:
+    inputs:
+      app_id:
+        description: "Process a specific app ID only (leave empty for all apps)"
+        required: false
+        type: string
+      force_all:
+        description: "Process all apps even if unchanged"
+        required: false
+        type: boolean
+        default: false
+
+# Prevent concurrent publish jobs overwriting each other.
+# Workers can run concurrently; the publish job is serialized.
+concurrency:
+  group: fdhub-update
+  cancel-in-progress: false
+
+permissions:
+  contents: write      # to commit state/ changes back
+  pages: write         # to deploy to GitHub Pages
+  id-token: write      # for OIDC Pages deployment
+  actions: read
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Job 1: Discovery
+  # Cheaply checks all apps for changes without downloading any APKs.
+  # Produces work-list.json for the batch processing jobs.
+  # ---------------------------------------------------------------------------
+  discover:
+    name: "Discover Changed Apps"
+    runs-on: ubuntu-latest
+    outputs:
+      work_list: ${{ steps.discover.outputs.work_list }}
+      has_work: ${{ steps.discover.outputs.has_work }}
+      batch_count: ${{ steps.discover.outputs.batch_count }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+
+      - name: Install FDHub
+        run: pip install -e .
+
+      - name: Restore APK cache
+        uses: actions/cache@v4
+        with:
+          path: cache/
+          key: fdhub-apk-cache-${{ runner.os }}-${{ hashFiles('state/**') }}
+          restore-keys: |
+            fdhub-apk-cache-${{ runner.os }}-
+
+      - name: Run discovery
+        id: discover
+        env:
+          GITHUB_TOKEN: ${{ secrets.FDHUB_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          # Run discovery and produce work-list.json
+          python - << 'EOF'
+          import asyncio
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          # Add src to path
+          sys.path.insert(0, "src")
+
+          from fdhub.config.loader import load_all_apps
+          from fdhub.config.settings import load_global_config
+          from fdhub.scheduler.pipeline import FDHubPipeline
+
+          root = Path(".")
+          config = load_global_config(root / "config")
+
+          target_app = "${{ inputs.app_id }}" or None
+
+          pipeline = FDHubPipeline(
+              fdhub_config=config,
+              project_root=root,
+              github_token=os.environ.get("GITHUB_TOKEN"),
+              dry_run=False,
+              target_app_id=target_app,
+          )
+
+          app_states = asyncio.run(pipeline.discover())
+          force_all = "${{ inputs.force_all }}" == "true"
+
+          changed = [
+              {"app_id": c.id, "github": c.github}
+              for c, s, has_changes in app_states
+              if has_changes or force_all
+          ]
+
+          # Batch into groups of 50 (configurable)
+          batch_size = config.batch.size
+          batches = [changed[i:i+batch_size] for i in range(0, len(changed), batch_size)]
+
+          work_list = {
+              "total_apps": len(app_states),
+              "changed_apps": len(changed),
+              "batches": batches,
+          }
+
+          with open("work-list.json", "w") as f:
+              json.dump(work_list, f, indent=2)
+
+          print(f"::notice::Discovery: {len(app_states)} apps, {len(changed)} changed, {len(batches)} batch(es)")
+
+          # Set outputs
+          import subprocess
+          # Encode work list for GitHub Actions output (JSON, single line)
+          wl_json = json.dumps(work_list)
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"has_work={'true' if changed else 'false'}\n")
+              f.write(f"batch_count={len(batches)}\n")
+              # Pass batch indices as JSON array for matrix
+              batch_indices = list(range(len(batches)))
+              f.write(f"work_list={json.dumps(batch_indices)}\n")
+
+          EOF
+
+      - name: Upload work list
+        uses: actions/upload-artifact@v4
+        with:
+          name: work-list
+          path: work-list.json
+          retention-days: 1
+
+  # ---------------------------------------------------------------------------
+  # Job 2: Process batches (parallel matrix)
+  # Each job processes one batch of apps: downloads new APKs, inspects them,
+  # writes per-app result files.
+  # ---------------------------------------------------------------------------
+  process:
+    name: "Process Batch ${{ matrix.batch_index }}"
+    needs: discover
+    if: needs.discover.outputs.has_work == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      # Allow other batches to continue even if one fails
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        batch_index: ${{ fromJson(needs.discover.outputs.work_list) }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+
+      - name: Install FDHub
+        run: pip install -e .
+
+      - name: Download work list
+        uses: actions/download-artifact@v4
+        with:
+          name: work-list
+
+      - name: Restore APK cache
+        uses: actions/cache@v4
+        with:
+          path: cache/
+          key: fdhub-apk-cache-${{ runner.os }}-${{ hashFiles('state/**') }}
+          restore-keys: |
+            fdhub-apk-cache-${{ runner.os }}-
+
+      - name: Set up Android SDK (for apksigner)
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: "11076708"
+          accept-android-sdk-licenses: true
+          packages: "build-tools;34.0.0"
+
+      - name: Process batch ${{ matrix.batch_index }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.FDHUB_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+          FDROID_KEYSTORE_BASE64: ${{ secrets.FDROID_KEYSTORE_BASE64 }}
+          FDROID_KEYSTORE_PASS: ${{ secrets.FDROID_KEYSTORE_PASS }}
+          FDROID_KEY_ALIAS: ${{ secrets.FDROID_KEY_ALIAS || 'repokey' }}
+        run: |
+          python - << 'EOF'
+          import asyncio
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          sys.path.insert(0, "src")
+
+          from fdhub.config.loader import load_all_apps, load_app_config, _load_schema
+          from fdhub.config.settings import load_global_config
+          from fdhub.scheduler.pipeline import FDHubPipeline
+          from fdhub.github.client import GitHubClient
+          from fdhub.state.manager import StateManager
+
+          root = Path(".")
+          config = load_global_config(root / "config")
+          schema = _load_schema()
+
+          with open("work-list.json") as f:
+              work_list = json.load(f)
+
+          batch_index = ${{ matrix.batch_index }}
+          batch = work_list["batches"][batch_index]
+
+          print(f"Processing batch {batch_index}: {len(batch)} app(s)")
+
+          results_dir = Path("batch-results")
+          results_dir.mkdir(exist_ok=True)
+
+          for app_entry in batch:
+              app_id = app_entry["app_id"]
+              app_path = root / "apps" / f"{app_id}.json"
+              if not app_path.exists():
+                  print(f"Skipping {app_id}: config not found")
+                  continue
+
+              app_config, errors = load_app_config(app_path, schema)
+              if errors or not app_config:
+                  print(f"Skipping {app_id}: config error")
+                  continue
+
+              pipeline = FDHubPipeline(
+                  fdhub_config=config,
+                  project_root=root,
+                  github_token=os.environ.get("GITHUB_TOKEN"),
+                  dry_run=False,
+                  target_app_id=app_id,
+              )
+
+              try:
+                  state_mgr = StateManager(root / "state")
+                  state = state_mgr.load_app(app_id, app_config.github)
+
+                  async def run_one():
+                      async with GitHubClient(
+                          token=os.environ.get("GITHUB_TOKEN"),
+                          inter_request_delay=config.rate_limit.inter_request_delay_ms / 1000,
+                      ) as client:
+                          app, updated_state, report = await pipeline.process_app(
+                              app_config, state, client
+                          )
+                          return app, updated_state, report
+
+                  app_model, updated_state, app_report = asyncio.run(run_one())
+
+                  # Write isolated result file
+                  result = {
+                      "app_id": app_id,
+                      "report": app_report.model_dump(mode="json"),
+                      "state": updated_state.model_dump(by_alias=True, mode="json"),
+                      "versions": [
+                          {
+                              "versionCode": v.version_code,
+                              "versionName": v.version_name,
+                              "releaseTag": v.release_tag,
+                              "variants": [
+                                  {
+                                      "assetName": var.artifact.asset_name,
+                                      "sha256": var.artifact.sha256,
+                                      "size": var.artifact.size,
+                                      "downloadUrl": var.artifact.download_url,
+                                      "architectures": var.artifact.architectures,
+                                      "isUniversal": var.artifact.is_universal,
+                                      "versionCode": var.artifact.version_code,
+                                      "versionName": var.artifact.version_name,
+                                      "minSdk": var.artifact.min_sdk,
+                                      "targetSdk": var.artifact.target_sdk,
+                                      "signingCertificateSha256": var.artifact.signing_certificate_sha256,
+                                      "quarantined": var.artifact.quarantined,
+                                      "quarantineReason": var.artifact.quarantine_reason.value if var.artifact.quarantine_reason else None,
+                                  }
+                                  for var in v.variants
+                              ],
+                          }
+                          for v in app_model.versions
+                      ],
+                  }
+                  with open(results_dir / f"{app_id}.json", "w") as f:
+                      json.dump(result, f, indent=2, default=str)
+                  print(f"✓ {app_id}: {app_report.result}")
+
+              except Exception as exc:
+                  print(f"✗ {app_id}: {exc}")
+                  with open(results_dir / f"{app_id}.json", "w") as f:
+                      json.dump({"app_id": app_id, "error": str(exc)}, f)
+
+          EOF
+
+      - name: Upload batch results
+        uses: actions/upload-artifact@v4
+        with:
+          name: batch-results-${{ matrix.batch_index }}
+          path: batch-results/
+          retention-days: 1
+
+  # ---------------------------------------------------------------------------
+  # Job 3: Merge + Generate + Sign + Publish
+  # Runs after all batch jobs complete.
+  # This job MUST NOT run concurrently with itself.
+  # ---------------------------------------------------------------------------
+  publish:
+    name: "Merge, Generate & Publish"
+    needs: [discover, process]
+    if: always() && needs.discover.outputs.has_work == 'true'
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Need write access to commit state changes back
+          token: ${{ secrets.FDHUB_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+
+      - name: Install FDHub
+        run: pip install -e .
+
+      - name: Download all batch results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: batch-results-*
+          merge-multiple: true
+          path: batch-results/
+
+      - name: Set up Android SDK (for apksigner)
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: "11076708"
+          accept-android-sdk-licenses: true
+          packages: "build-tools;34.0.0"
+
+      - name: Merge results and generate index
+        env:
+          FDROID_KEYSTORE_BASE64: ${{ secrets.FDROID_KEYSTORE_BASE64 }}
+          FDROID_KEYSTORE_PASS: ${{ secrets.FDROID_KEYSTORE_PASS }}
+          FDROID_KEY_ALIAS: ${{ secrets.FDROID_KEY_ALIAS || 'repokey' }}
+        run: |
+          python - << 'EOF'
+          import json
+          import sys
+          from pathlib import Path
+          from datetime import datetime, timezone
+
+          sys.path.insert(0, "src")
+
+          from fdhub.config.loader import load_all_apps, load_app_config, _load_schema
+          from fdhub.config.settings import load_global_config
+          from fdhub.fdroid.formatter import format_index_v2, write_index_v2
+          from fdhub.fdroid.signer import sign_repository
+          from fdhub.model.internal import Repository, Application, Version, Variant, ApkArtifact
+          from fdhub.model.state import AppState
+          from fdhub.state.manager import StateManager
+
+          root = Path(".")
+          config = load_global_config(root / "config")
+          schema = _load_schema()
+          state_mgr = StateManager(root / "state")
+
+          results_dir = Path("batch-results")
+          result_files = list(results_dir.glob("*.json")) if results_dir.exists() else []
+          print(f"Merging {len(result_files)} batch result file(s)")
+
+          applications = []
+          processed_app_ids = set()
+
+          for result_file in sorted(result_files):
+              try:
+                  with open(result_file) as f:
+                      result = json.load(f)
+
+                  app_id = result["app_id"]
+                  if "error" in result:
+                      print(f"⚠ {app_id}: had processing error — keeping existing state")
+                      continue
+
+                  # Restore state
+                  state_data = result.get("state", {})
+                  state = AppState.model_validate(state_data)
+                  state_mgr.save_app(state)
+
+                  # Rebuild Application model from result
+                  app_path = root / "apps" / f"{app_id}.json"
+                  if not app_path.exists():
+                      continue
+                  app_config, errors = load_app_config(app_path, schema)
+                  if not app_config:
+                      continue
+
+                  app = Application(
+                      package_id=app_id,
+                      name=app_config.name,
+                      github_owner=app_config.github_owner,
+                      github_repo=app_config.github_repo,
+                      summary=app_config.metadata.summary,
+                      description=app_config.metadata.description,
+                      license=app_config.metadata.license,
+                      website=app_config.metadata.website,
+                      categories=app_config.metadata.categories,
+                  )
+
+                  for v_data in result.get("versions", []):
+                      variants = []
+                      for var_data in v_data.get("variants", []):
+                          artifact = ApkArtifact(
+                              asset_name=var_data["assetName"],
+                              download_url=var_data["downloadUrl"],
+                              sha256=var_data["sha256"],
+                              size=var_data["size"],
+                              package_id=app_id,
+                              version_code=var_data["versionCode"],
+                              version_name=var_data["versionName"],
+                              min_sdk=var_data.get("minSdk"),
+                              target_sdk=var_data.get("targetSdk"),
+                              architectures=var_data.get("architectures", []),
+                              is_universal=var_data.get("isUniversal", False),
+                              signing_certificate_sha256=var_data.get("signingCertificateSha256", []),
+                              quarantined=var_data.get("quarantined", False),
+                              release_id=state.latest_release_id or 0,
+                              release_tag=v_data["releaseTag"],
+                              release_name=v_data["releaseTag"],
+                              release_date=datetime.now(timezone.utc),
+                          )
+                          variants.append(Variant(artifact=artifact))
+
+                      from fdhub.model.internal import Version as Vers
+                      version = Vers(
+                          version_code=v_data["versionCode"],
+                          version_name=v_data["versionName"],
+                          release_id=state.latest_release_id or 0,
+                          release_tag=v_data["releaseTag"],
+                          release_name=v_data["releaseTag"],
+                          release_date=datetime.now(timezone.utc),
+                          variants=variants,
+                      )
+                      app.versions.append(version)
+
+                  applications.append(app)
+                  processed_app_ids.add(app_id)
+                  print(f"✓ Merged {app_id}: {len(app.versions)} version(s)")
+
+              except Exception as exc:
+                  print(f"✗ Failed to merge {result_file.name}: {exc}")
+
+          # Build final repo model and generate index
+          repo = Repository(
+              name=config.repo_name,
+              description=config.repo_description,
+              address=config.repo_url,
+              web_base_url=config.web_base_url,
+              timestamp=datetime.now(timezone.utc),
+              applications=applications,
+          )
+
+          index = format_index_v2(repo)
+
+          repo_dir = root / "generated" / "repo"
+          repo_dir.mkdir(parents=True, exist_ok=True)
+
+          tmp_index = repo_dir / "_index-v2.json.tmp"
+          write_index_v2(index, tmp_index)
+
+          # Sign the repository
+          sign_repository(repo_dir, tmp_index)
+          tmp_index.unlink(missing_ok=True)
+
+          print(f"\n✅ Repository generated: {repo_dir}")
+          print(f"   Packages: {len(applications)}")
+
+          EOF
+
+      - name: Commit state changes
+        run: |
+          git config user.name "FDHub Bot"
+          git config user.email "fdhub-bot@users.noreply.github.com"
+          git add state/
+          git diff --cached --quiet || git commit -m "chore: update state after FDHub run [skip ci]"
+          git push || echo "Nothing to push"
+
+      - name: Setup GitHub Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload repository to Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: generated/repo/
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,61 @@
+name: Validate App Configurations
+
+# Runs on every push and pull request.
+# Validates all apps/*.json against the JSON schema.
+# Rejects PRs that introduce invalid configurations.
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "apps/**"
+      - "apps.schema.json"
+      - "src/**"
+      - "pyproject.toml"
+  pull_request:
+    paths:
+      - "apps/**"
+      - "apps.schema.json"
+
+permissions:
+  contents: read
+  pull-requests: write  # for posting validation results as PR comments
+
+jobs:
+  validate:
+    name: Validate Configurations
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install FDHub
+        run: pip install -e ".[dev]"
+
+      - name: Validate app configurations
+        id: validate
+        run: fdhub validate
+        continue-on-error: true
+
+      - name: Post PR comment on failure
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '❌ **FDHub validation failed.** One or more `apps/*.json` files are invalid.\n\nRun `fdhub validate` locally to see the errors.'
+            })
+
+      - name: Fail if invalid
+        if: steps.validate.outcome == 'failure'
+        run: exit 1

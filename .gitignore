@@ -40,6 +40,7 @@ state/apps/*
 !state/apps/.gitkeep
 generated/repo/*
 !generated/repo/.gitkeep
+!generated/index.html
 generated/repo/signatures/*
 !generated/repo/signatures/.gitkeep
 generated/reports/*

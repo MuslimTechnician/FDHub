@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FDHub — F-Droid Repository</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Fira+Code:wght@400;500&family=Inter:wght@400;500;600&display=swap"
+        rel="stylesheet">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+    <style>
+        :root {
+            --primary: #fce300;
+            --primary-strong: #ffd900;
+            --secondary: #cbd5df;
+            --tertiary: #ff0042;
+            --neutral: #05080a;
+            --surface: #0b1115;
+            --surface-2: #0f171c;
+            --on-surface: #eef2f5;
+            --border: #26313a;
+            --muted: #697680;
+            --glow: rgba(255, 0, 66, .25);
+
+            --radius: 8px;
+            --radius-sm: 4px;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background:
+                radial-gradient(circle at 50% -10%, rgba(252, 227, 0, .045), transparent 35%),
+                var(--neutral);
+            color: var(--secondary);
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            width: min(100%, 680px);
+            padding: 42px 20px 24px;
+            text-align: center;
+        }
+
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 5px 10px;
+            margin-bottom: 14px;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            background: rgba(11, 17, 21, .8);
+            color: #aeb9c2;
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: .09em;
+            text-transform: uppercase;
+        }
+
+        .chip::before {
+            content: "";
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: var(--primary);
+            box-shadow: 0 0 8px rgba(252, 227, 0, .6);
+        }
+
+        .headline-display {
+            margin: 0;
+            font-family: 'Chakra Petch', sans-serif;
+            font-size: clamp(48px, 10vw, 76px);
+            line-height: .95;
+            font-weight: 700;
+            letter-spacing: -.04em;
+            color: var(--on-surface);
+        }
+
+        .headline-display .accent {
+            color: var(--tertiary);
+            text-shadow: 0 0 22px var(--glow);
+        }
+
+        .headline-lg {
+            margin: 10px 0 12px;
+            color: var(--primary);
+            font-family: 'Fira Code', monospace;
+            font-size: clamp(18px, 4vw, 25px);
+            line-height: 1.2;
+            font-weight: 500;
+            letter-spacing: .01em;
+        }
+
+        .body-lg {
+            max-width: 530px;
+            margin: 0 auto 26px;
+            color: var(--secondary);
+            font-size: 15px;
+            line-height: 1.55;
+        }
+
+        .card {
+            width: 100%;
+            padding: 20px;
+            background:
+                linear-gradient(180deg, rgba(255, 255, 255, .018), transparent),
+                var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: 0 14px 40px rgba(0, 0, 0, .24);
+        }
+
+        .card-title {
+            margin: 0 0 16px;
+            color: var(--on-surface);
+            font-family: 'Chakra Petch', sans-serif;
+            font-size: 21px;
+            font-weight: 600;
+        }
+
+        #qrcode {
+            width: fit-content;
+            margin: 0 auto 14px;
+            padding: 10px;
+            background: #fff;
+            border-radius: var(--radius-sm);
+            line-height: 0;
+        }
+
+        #qrcode img,
+        #qrcode canvas {
+            display: block;
+            width: 164px !important;
+            height: 164px !important;
+        }
+
+        .input-group {
+            width: 100%;
+            margin-bottom: 12px;
+        }
+
+        .url-input {
+            width: 100%;
+            height: 44px;
+            padding: 0 13px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            outline: none;
+            background: var(--neutral);
+            color: #bbc5cc;
+            font-family: 'Fira Code', monospace;
+            font-size: 12px;
+            text-align: center;
+        }
+
+        .btn-primary {
+            width: 100%;
+            min-height: 46px;
+            margin-bottom: 10px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 0;
+            border-radius: var(--radius-sm);
+            background: var(--primary);
+            color: var(--neutral);
+            text-decoration: none;
+            font-family: 'Chakra Petch', sans-serif;
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: .03em;
+            text-transform: uppercase;
+            transition: transform .16s ease, background .16s ease, box-shadow .16s ease;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-strong);
+            transform: translateY(-1px);
+            box-shadow: 0 7px 20px rgba(252, 227, 0, .14);
+        }
+
+        .hint {
+            margin: 0;
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.45;
+        }
+
+        .hint strong {
+            color: #9ba7af;
+            font-weight: 500;
+        }
+
+        .footer {
+            padding-top: 18px;
+            color: #35424c;
+            font-family: 'Fira Code', monospace;
+            font-size: 11px;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding-top: 28px;
+            }
+
+            .headline-display {
+                font-size: 50px;
+            }
+
+            .body-lg {
+                font-size: 14px;
+                margin-bottom: 20px;
+            }
+
+            .card {
+                padding: 16px;
+            }
+
+            #qrcode img,
+            #qrcode canvas {
+                width: 150px !important;
+                height: 150px !important;
+            }
+        }
+    </style>
+
+</head>
+
+<body>
+    <main class="container">
+
+        <div class="chip">Open Source Repository</div>
+
+        <h1 class="headline-display">
+            FDHUB <span class="accent">REPO</span>
+        </h1>
+
+        <h2 class="headline-lg">Automated F-Droid Builds</h2>
+
+        <p class="body-lg">
+            Latest, unmodified Android apps built directly from their developers'
+            GitHub releases. No tracking. No middle-men.
+        </p>
+
+        <section class="card">
+            <h3 class="card-title">Add to your Client</h3>
+
+            <div id="qrcode"></div>
+
+            <div class="input-group">
+                <input type="text" class="url-input" id="repoUrl" readonly
+                    value="https://muslimtechnician.github.io/fdhub/repo">
+            </div>
+
+            <a href="fdroidrepos://muslimtechnician.github.io/fdhub/repo" class="btn-primary">
+                Add to F-Droid
+            </a>
+
+            <p class="hint">
+                Scan this QR code with <strong>F-Droid</strong>, <strong>Neo Store</strong>,
+                or <strong>Droid-ify</strong>.
+            </p>
+        </section>
+
+        <footer class="footer">
+            Powered by FDHub
+        </footer>
+
+    </main>
+
+    <script>
+        // Generate QR Code for the F-Droid URL scheme
+        const repoUrl = "fdroidrepos://muslimtechnician.github.io/fdhub/repo";
+
+        new QRCode(document.getElementById("qrcode"), {
+            text: repoUrl,
+            width: 164,
+            height: 164,
+            colorDark: "#05080a",
+            colorLight: "#ffffff",
+            correctLevel: QRCode.CorrectLevel.M
+        });
+    </script>
+
+</body>
+
+</html>

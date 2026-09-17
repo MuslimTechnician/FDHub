@@ -17,8 +17,6 @@ concurrency:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 env:
   PYTHON_VERSION: "3.11"
@@ -27,10 +25,6 @@ jobs:
   generate:
     name: Generate and Publish Index
     runs-on: ubuntu-latest
-
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
       - name: Checkout
@@ -61,14 +55,31 @@ jobs:
           FDROID_KEY_ALIAS: ${{ secrets.FDROID_KEY_ALIAS || 'repokey' }}
         run: fdhub generate-index
 
-      - name: Setup GitHub Pages
-        uses: actions/configure-pages@v4
+      - name: Write Netlify redirects from index
+        run: |
+          python - << 'EOF'
+          import json
+          import sys
+          from pathlib import Path
 
-      - name: Upload repository to Pages
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: generated/repo/
+          sys.path.insert(0, "src")
+          from fdhub.fdroid.redirects import write_redirects
 
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          index_path = Path("generated/repo/index-v2.json")
+          if not index_path.exists():
+              print("No index-v2.json yet; skipping redirects")
+              raise SystemExit(0)
+
+          index = json.loads(index_path.read_text(encoding="utf-8"))
+          n = write_redirects(index, Path("generated/_redirects"))
+          print(f"Wrote {n} redirect(s)")
+          EOF
+
+      - name: Copy Repository Icon
+        run: cp assets/icon.png generated/repo/icon.png || true
+
+      - name: Deploy to Netlify
+        run: npx --yes netlify-cli deploy --prod --dir=generated --site "$NETLIFY_SITE_ID"
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}

@@ -45,6 +45,7 @@ generated/repo/signatures/*
 !generated/repo/signatures/.gitkeep
 generated/reports/*
 !generated/reports/.gitkeep
+generated/_redirects
 
 # Large binary temp files
 *.tmp
@@ -57,9 +58,12 @@ generated/reports/*
 keystore.b64
 local.properties
 
-# Generated output (committed selectively; gh-pages branch handles publication)
+# Generated output (committed selectively; Netlify handles publication)
 # generated/ is committed because it contains the published repo index
 
 # OS
 .DS_Store
 Thumbs.db
+
+# Local Netlify folder
+.netlify

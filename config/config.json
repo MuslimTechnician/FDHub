@@ -1,8 +1,8 @@
 {
   "repoName": "FDHub",
   "repoDescription": "An F-Droid repository for apps that are not available in F-Droid and other repos, installable from any F-Droid client.",
-  "repoUrl": "https://muslimtechnician.github.io/FDHub/repo",
-  "webBaseUrl": "https://muslimtechnician.github.io/FDHub",
+  "repoUrl": "https://fdhub-mt.netlify.app/repo",
+  "webBaseUrl": "https://fdhub-mt.netlify.app",
 
   "keystoreAlias": "repokey",
 

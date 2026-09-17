@@ -9,7 +9,7 @@ To install these apps on your Android device, you need an F-Droid client (like [
 Add the following repository URL to your client:
 
 ```text
-https://muslimtechnician.github.io/FDHub/repo
+https://fdhub-mt.netlify.app/repo
 ```
 
 Once added, the apps will appear in your catalog and automatically receive updates!
@@ -49,3 +49,27 @@ Here is a minimal configuration example. Just change the `id`, `name`, and `gith
 ```
 
 *Note: The system only tracks official GitHub Releases. The app must attach pre-compiled `.apk` files to their GitHub Releases to be supported.*
+
+---
+
+## Deploy (Netlify)
+
+The public F-Droid front door is hosted on **Netlify**. Index/entry/icon are served from Netlify; APK paths use `_redirects` **302** to each app’s official GitHub Release asset (no APK re-hosting).
+
+### One-time setup
+
+Already done for this repo:
+
+- Netlify site: **`fdhub-mt`** → https://fdhub-mt.netlify.app  
+  (`fdhub` was unavailable; project is linked locally)
+- GitHub Actions secrets: `NETLIFY_AUTH_TOKEN`, `NETLIFY_SITE_ID`
+
+Confirm after the first successful workflow deploy:
+
+1. `https://fdhub-mt.netlify.app/repo/index-v2.json` returns 200
+2. `https://fdhub-mt.netlify.app/repo/<apk-file-name>` returns **302** to the upstream Release URL
+3. Disable or ignore the old GitHub Pages site so clients use the Netlify URL only.
+
+Scheduled updates and `generate.yml` both publish with:
+
+`netlify-cli deploy --prod --dir=generated`

@@ -36,8 +36,8 @@ class FDHubConfig(BaseModel):
     # Repository identity
     repo_name: str = Field("FDHub Repository", alias="repoName")
     repo_description: str = Field("F-Droid compatible binary repository", alias="repoDescription")
-    repo_url: str = Field(alias="repoUrl")  # e.g. https://username.github.io/fdhub/repo
-    web_base_url: str = Field(alias="webBaseUrl")  # e.g. https://username.github.io/fdhub
+    repo_url: str = Field(alias="repoUrl")  # e.g. https://fdhub-mt.netlify.app/repo
+    web_base_url: str = Field(alias="webBaseUrl")  # e.g. https://fdhub-mt.netlify.app
 
     # Signing
     keystore_alias: str = Field("repokey", alias="keystoreAlias")

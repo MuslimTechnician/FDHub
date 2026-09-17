@@ -7,7 +7,7 @@ Coordinates all stages:
     Stage 3: Merge — combine worker results into canonical state
     Stage 4: Generation — produce F-Droid index-v2
     Stage 5: Signing — sign with apksigner
-    Stage 6: Publication — deploy to gh-pages branch
+    Stage 6: Publication — deploy to Netlify (index + APK 302 redirects)
 """
 from __future__ import annotations
 

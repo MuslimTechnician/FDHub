@@ -6,12 +6,12 @@ name: FDHub Scheduled Update
 # Architecture:
 #   Job 1: discover    — cheap check of all apps, produces work-list.json
 #   Job 2: process     — matrix over batches (configurable size)
-#   Job 3: publish     — merge results, generate index, sign, deploy to Pages
+#   Job 3: publish     — merge results, generate index, sign, deploy to Netlify
 #
 # GitHub Actions limits:
 #   - Matrix: max 256 jobs per workflow
 #   - GITHUB_TOKEN: 1,000 req/hr per repo (use a PAT for higher limits)
-#   - GitHub Pages: 1 GB max, 100 GB/month bandwidth
+# Public hosting: Netlify (index + _redirects 302 to upstream APKs)
 
 on:
   schedule:
@@ -39,8 +39,6 @@ concurrency:
 
 permissions:
   contents: write      # to commit state/ changes back
-  pages: write         # to deploy to GitHub Pages
-  id-token: write      # for OIDC Pages deployment
   actions: read
 
 env:
@@ -343,10 +341,6 @@ jobs:
     if: always() && needs.discover.outputs.has_work == 'true'
     runs-on: ubuntu-latest
 
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -394,6 +388,7 @@ jobs:
           from fdhub.config.loader import load_all_apps, load_app_config, _load_schema
           from fdhub.config.settings import load_global_config
           from fdhub.fdroid.formatter import format_index_v2, write_index_v2
+          from fdhub.fdroid.redirects import write_redirects
           from fdhub.fdroid.signer import sign_repository
           from fdhub.model.internal import Repository, Application, Version, Variant, ApkArtifact
           from fdhub.model.state import AppState
@@ -511,8 +506,12 @@ jobs:
           sign_repository(repo_dir, tmp_index)
           tmp_index.unlink(missing_ok=True)
 
+          # Netlify _redirects: /repo/{file.name} -> upstream apkLink
+          redirects_path = root / "generated" / "_redirects"
+          n = write_redirects(index, redirects_path)
           print(f"\n✅ Repository generated: {repo_dir}")
           print(f"   Packages: {len(applications)}")
+          print(f"   Redirects: {n} -> {redirects_path}")
 
           EOF
 
@@ -524,17 +523,11 @@ jobs:
           git diff --cached --quiet || git commit -m "chore: update state after FDHub run [skip ci]"
           git push || echo "Nothing to push"
 
-      - name: Setup GitHub Pages
-        uses: actions/configure-pages@v4
-
       - name: Copy Repository Icon
         run: cp assets/icon.png generated/repo/icon.png || true
 
-      - name: Upload repository to Pages
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: generated/
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Deploy to Netlify
+        run: npx --yes netlify-cli deploy --prod --dir=generated --site "$NETLIFY_SITE_ID"
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}

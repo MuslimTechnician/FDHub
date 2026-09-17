@@ -187,7 +187,7 @@ class Repository(BaseModel):
 
     name: str
     description: str
-    address: str  # public URL of the repository (GitHub Pages URL)
+    address: str  # public URL of the repository (Netlify CDN URL)
     web_base_url: str
 
     timestamp: datetime

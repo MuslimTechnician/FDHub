@@ -56,9 +56,11 @@ jobs:
         run: fdhub generate-index
 
       - name: Write Netlify redirects from index
+        id: redirects
         run: |
           python - << 'EOF'
           import json
+          import os
           import sys
           from pathlib import Path
 
@@ -66,19 +68,24 @@ jobs:
           from fdhub.fdroid.redirects import write_redirects
 
           index_path = Path("generated/repo/index-v2.json")
+          out = Path(os.environ["GITHUB_OUTPUT"])
           if not index_path.exists():
-              print("No index-v2.json yet; skipping redirects")
+              print("No index-v2.json yet; skipping redirects and deploy")
+              out.open("a", encoding="utf-8").write("ready=false\n")
               raise SystemExit(0)
 
           index = json.loads(index_path.read_text(encoding="utf-8"))
           n = write_redirects(index, Path("generated/_redirects"))
           print(f"Wrote {n} redirect(s)")
+          out.open("a", encoding="utf-8").write("ready=true\n")
           EOF
 
       - name: Copy Repository Icon
+        if: steps.redirects.outputs.ready == 'true'
         run: cp assets/icon.png generated/repo/icon.png || true
 
       - name: Deploy to Netlify
+        if: steps.redirects.outputs.ready == 'true'
         run: npx --yes netlify-cli deploy --prod --dir=generated --site "$NETLIFY_SITE_ID"
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
